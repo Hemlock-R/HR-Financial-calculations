@@ -1,8 +1,8 @@
-              const defaultVocabulary = {
-            income: ['job', 'salary', 'wage', 'pay', 'bonus', 'dividend', 'profit', 'sales', 'freelance', 'commission', 'grant', 'allowance', 'payout', 'interest earned', 'royalty', 'gig', 'airdrop', 'staking rewards', 'gift money', 'funding', 'refund', 'reimbursement', 'side hustle', 'tips', 'revenue', 'earnings'],
-            asset: ['house', 'stock', 'bond', 'crypto', 'bitcoin', 'gold', 'real estate', 'land', 'investment', 'savings', 'equity', 'fund', 'property', 'ethereum', 'solana', 'usdt', 'portfolio', 'share', 'cash account', 'forex balance', 'nft', 'equipment', 'machinery', 'vehicle', 'car asset', 'gold bars', 'silver', 'wallet balance'],
-            liability: ['loan', 'debt', 'mortgage', 'credit', 'borrow', 'overdraft', 'owe', 'paylater', 'leverage margin', 'funding fee debt', 'bill outstanding', 'dues', 'arrears', 'taxes owed', 'pawn'],
-            expense: ['food', 'clothes', 'rent', 'gas', 'car', 'utility', 'bill', 'grocery', 'groceries', 'subscription', 'tax', 'fee', 'fees', 'shoe', 'shirt', 'jacket', 'meal', 'restaurant', 'transport', 'wifi', 'internet', 'electricity', 'water', 'insurance', 'entertainment', 'movie', 'game', 'software', 'hosting', 'domain', 'data bundle', 'airtime', 'credit unit', 'snacks', 'drinks', 'lunch', 'dinner', 'uber', 'bolt', 'repairs', 'maintenance']
+               const defaultVocabulary = {
+            income: ['job', 'salary', 'wage', 'pay', 'bonus', 'dividend', 'profit', 'sales', 'freelance', 'commission', 'grant', 'allowance', 'payout', 'interest earned', 'royalty', 'gig', 'airdrop'],
+            asset: ['house', 'stock', 'bond', 'crypto', 'bitcoin', 'gold', 'real estate', 'land', 'investment', 'savings', 'equity', 'fund', 'property', 'ethereum', 'solana', 'usdt', 'portfolio'],
+            liability: ['loan', 'debt', 'mortgage', 'credit', 'borrow', 'overdraft', 'owe', 'paylater', 'leverage margin', 'funding fee debt', 'bill outstanding', 'dues', 'arrears', 'taxes owed'],
+            expense: ['food', 'clothes', 'rent', 'gas', 'car', 'utility', 'bill', 'grocery', 'groceries', 'subscription', 'tax', 'fee', 'fees', 'shoe', 'shirt', 'jacket', 'meal', 'restaurant', 'transport', 'internet', 'phone']
         };
 
         const defaultPreferences = {
@@ -225,19 +225,19 @@
 
             if (systemVocab.income.some(kw => itemName.includes(kw))) {
                 category = "Income"; color = "var(--color-income)"; targetInput = ui.income;
-                explanation = `This is classified as Income because it represents an inbound inflow or influx of capital increasing overall cash reservoirs. Tip: Funnel a fixed ratio of this entry directly to purchase assets!`;
+                explanation = `This is classified as Income because it represents an inbound inflow or influx of capital increasing overall cash reservoirs. Tip: Funnel a fixed ratio of this entry into savings.`;
             } else if (systemVocab.asset.some(kw => itemName.includes(kw))) {
                 category = "Asset"; color = "var(--color-asset)"; targetInput = ui.assets;
-                explanation = `This is classified as an Asset because it holds future value retrieval property equity options or builds yield. Tip: Protect your asset holdings; these act as engines multiplying long term security layouts.`;
+                explanation = `This is classified as an Asset because it holds future value retrieval property equity options or builds yield. Tip: Protect your asset holdings; these act as engines.`;
             } else if (systemVocab.liability.some(kw => itemName.includes(kw))) {
                 category = "Liability"; color = "var(--color-liability)"; targetInput = ui.liabilities;
-                explanation = `This is classified as a Liability because it is an outstanding financial commitment or leverage drag drawing value backwards. Tip: Prioritize extra balances into erasing liabilities early to avoid structural performance compound friction fees.`;
+                explanation = `This is classified as a Liability because it is an outstanding financial commitment or leverage drag drawing value backwards. Tip: Prioritize extra balances into erasing obligations.`;
             } else {
                 category = "Expense"; color = "var(--color-expense)"; targetInput = ui.expenses;
                 if(itemName.includes("food") || itemName.includes("grocery") || itemName.includes("groceries") || itemName.includes("restaurant")) {
-                    explanation = `This is classified as an Expense because it's a consumption cost where money leaves without returning equity. Try planning weekly bulk meal preps, setting an explicit budget cap before tracking checkout menus, or cutting down high restaurant markups to preserve structural cash balance velocity.`;
+                    explanation = `This is classified as an Expense because it's a consumption cost where money leaves without returning equity. Try planning weekly bulk meal preps.`;
                 } else {
-                    explanation = `This is classified as an Expense because it tracks immediate outflow and lifestyle consumption drain metrics. Tip: Review recurring components to see if they can be minimized or substituted for long term gains.`;
+                    explanation = `This is classified as an Expense because it tracks immediate outflow and lifestyle consumption drain metrics. Tip: Review recurring components.`;
                 }
             }
 
@@ -736,6 +736,7 @@
             }
         }
 
+        // IMPROVED EXPORT FUNCTION
         function exportSystemData() {
             const exportData = {
                 sys_vocabulary: JSON.parse(localStorage.getItem('sys_vocabulary')) || defaultVocabulary,
@@ -750,15 +751,31 @@
             document.body.appendChild(downloadAnchor);
             downloadAnchor.click();
             downloadAnchor.remove();
+            alert("Data exported successfully! File is downloading.");
         }
 
+        // IMPROVED IMPORT FUNCTION WITH VALIDATION
         function importSystemData(event) {
             const file = event.target.files[0];
             if (!file) return;
+            
+            // Validate file type
+            if (!file.name.endsWith('.json')) {
+                alert("Please select a valid JSON file (.json extension required).");
+                return;
+            }
+            
             const reader = new FileReader();
             reader.onload = function(e) {
                 try {
                     const imported = JSON.parse(e.target.result);
+                    
+                    // Validate imported structure
+                    if (!imported.sys_vocabulary && !imported.sys_preferences && !imported.sys_goals && !imported.wealthDashboardHistory) {
+                        throw new Error("Invalid backup file format. File does not contain expected data fields.");
+                    }
+                    
+                    // Import each section if it exists
                     if (imported.sys_vocabulary) localStorage.setItem('sys_vocabulary', JSON.stringify(imported.sys_vocabulary));
                     if (imported.sys_preferences) localStorage.setItem('sys_preferences', JSON.stringify(imported.sys_preferences));
                     if (imported.sys_goals) localStorage.setItem('sys_goals', JSON.stringify(imported.sys_goals));
@@ -767,11 +784,27 @@
                     alert("Data imported successfully! The page will now reload.");
                     location.reload();
                 } catch (err) {
-                    alert("Failed to parse import file. Ensure it is a valid JSON backup.");
+                    alert("Failed to import: " + (err.message || "Invalid JSON file. Please ensure you're importing a valid backup."));
+                    console.error("Import error:", err);
                 }
             };
+            
+            reader.onerror = function() {
+                alert("Failed to read file. Please try again.");
+            };
+            
             reader.readAsText(file);
         }
+
+        // PROPER EVENT LISTENER SETUP FOR IMPORT
+        document.addEventListener('DOMContentLoaded', function() {
+            const importFile = document.getElementById('importFile');
+            
+            if (importFile) {
+                // Ensure the file input triggers when the label is clicked
+                importFile.addEventListener('change', importSystemData);
+            }
+        });
 
         window.onload = function() { applyPreferencesEngineState(); };
         inputs.forEach(i => i.addEventListener('input', calculateAndCompare));
