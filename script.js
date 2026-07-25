@@ -749,12 +749,11 @@ function exportSystemData() {
     downloadAnchor.remove();
 }
 
-// FIXED: Handles direct button taps on mobile as well as standard file input events
 function importSystemData(event) {
     if (!event || !event.target || !event.target.files) {
         const fileInput = document.createElement('input');
         fileInput.type = 'file';
-        fileInput.accept = '.json,application/json';
+        fileInput.accept = '*/*'; 
         fileInput.onchange = function(e) {
             importSystemData(e);
         };
@@ -775,7 +774,6 @@ function importSystemData(event) {
             if (imported.sys_goals) localStorage.setItem('sys_goals', JSON.stringify(imported.sys_goals));
             if (imported.wealthDashboardHistory) localStorage.setItem('wealthDashboardHistory', JSON.stringify(imported.wealthDashboardHistory));
 
-            // Fallback to load direct JSON key-value backups
             if (!imported.sys_vocabulary && !imported.sys_preferences && !imported.wealthDashboardHistory) {
                 for (const key in imported) {
                     if (typeof imported[key] === 'object') {
