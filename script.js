@@ -1,3 +1,7 @@
+// Let's look closely at why it might not be working in your environment (especially on a mobile editor like Spck Editor). 
+// The issues usually come down to DOM elements not being fully loaded when the script runs, JSON parsing exceptions on corrupt localStorage, or scope issues with event handlers.
+// Here is the fully patched and robust version of your script with defensive checks added to prevent silent failures:
+
 const defaultVocabulary = {
     income: ['job', 'salary', 'wage', 'pay', 'bonus', 'dividend', 'profit', 'sales', 'freelance', 'commission', 'grant', 'allowance', 'payout', 'interest earned', 'royalty', 'gig', 'airdrop', 'staking rewards', 'gift money', 'funding', 'refund', 'reimbursement', 'side hustle', 'tips', 'revenue', 'earnings'],
     asset: ['house', 'stock', 'bond', 'crypto', 'bitcoin', 'gold', 'real estate', 'land', 'investment', 'savings', 'equity', 'fund', 'property', 'ethereum', 'solana', 'usdt', 'portfolio', 'share', 'cash account', 'forex balance', 'nft', 'equipment', 'machinery', 'vehicle', 'car asset', 'gold bars', 'silver', 'wallet balance'],
@@ -12,9 +16,20 @@ const defaultPreferences = {
     currency: 'GHS'
 };
 
-let systemVocab = JSON.parse(localStorage.getItem('sys_vocabulary')) || defaultVocabulary;
-let systemPrefs = JSON.parse(localStorage.getItem('sys_preferences')) || defaultPreferences;
-let systemGoals = JSON.parse(localStorage.getItem('sys_goals')) || [];
+// Safe local storage parsers to prevent crashes if storage is corrupted or empty
+function safeGetLocalStorage(key, fallback) {
+    try {
+        const item = localStorage.getItem(key);
+        return item ? JSON.parse(item) : fallback;
+    } catch (e) {
+        console.warn(`Error parsing localStorage key "${key}":`, e);
+        return fallback;
+    }
+}
+
+let systemVocab = safeGetLocalStorage('sys_vocabulary', defaultVocabulary);
+let systemPrefs = safeGetLocalStorage('sys_preferences', defaultPreferences);
+let systemGoals = safeGetLocalStorage('sys_goals', []);
 let calcClearOnNextInput = false;
 let formatter; 
 
@@ -44,45 +59,59 @@ function updateFormatter() {
     };
 }
 
-const inputs = document.querySelectorAll('input[type="number"]');
 const rootContainer = document.documentElement;
 
-const ui = {
-    assets: document.getElementById('assets'),
-    liabilities: document.getElementById('liabilities'),
-    income: document.getElementById('income'),
-    expenses: document.getElementById('expenses'),
-    pocketMoney: document.getElementById('pocketMoney'),
-    savedMoney: document.getElementById('savedMoney'),
-    logDate: document.getElementById('logDate'),
-    barAsset: document.getElementById('barAsset'),
-    barIncome: document.getElementById('barIncome'),
-    barExpense: document.getElementById('barExpense'),
-    barLiability: document.getElementById('barLiability'),
-    pctAsset: document.getElementById('pctAsset'),
-    pctIncome: document.getElementById('pctIncome'),
-    pctExpense: document.getElementById('pctExpense'),
-    pctLiability: document.getElementById('pctLiability'),
-    sketchIncome: document.getElementById('sketchIncome'),
-    sketchExpenses: document.getElementById('sketchExpenses'),
-    sketchAssets: document.getElementById('sketchAssets'),
-    sketchLiabilities: document.getElementById('sketchLiabilities'),
-    nwDisplay: document.getElementById('netWorthDisplay'),
-    nwStatus: document.getElementById('netWorthStatus'),
-    niDisplay: document.getElementById('netIncomeDisplay'),
-    niStatus: document.getElementById('netIncomeStatus'),
-    advisorPanel: document.getElementById('blueprintContent'),
-    historyBody: document.getElementById('historyBody')
-};
+// Lazy-eval or safe UI binder to prevent null reference errors if elements aren't immediately found
+function getUIElements() {
+    return {
+        assets: document.getElementById('assets'),
+        liabilities: document.getElementById('liabilities'),
+        income: document.getElementById('income'),
+        expenses: document.getElementById('expenses'),
+        pocketMoney: document.getElementById('pocketMoney'),
+        savedMoney: document.getElementById('savedMoney'),
+        logDate: document.getElementById('logDate'),
+        barAsset: document.getElementById('barAsset'),
+        barIncome: document.getElementById('barIncome'),
+        barExpense: document.getElementById('barExpense'),
+        barLiability: document.getElementById('barLiability'),
+        pctAsset: document.getElementById('pctAsset'),
+        pctIncome: document.getElementById('pctIncome'),
+        pctExpense: document.getElementById('pctExpense'),
+        pctLiability: document.getElementById('pctLiability'),
+        sketchIncome: document.getElementById('sketchIncome'),
+        sketchExpenses: document.getElementById('sketchExpenses'),
+        sketchAssets: document.getElementById('sketchAssets'),
+        sketchLiabilities: document.getElementById('sketchLiabilities'),
+        nwDisplay: document.getElementById('netWorthDisplay'),
+        nwStatus: document.getElementById('netWorthStatus'),
+        niDisplay: document.getElementById('netIncomeDisplay'),
+        niStatus: document.getElementById('netIncomeStatus'),
+        advisorPanel: document.getElementById('blueprintContent'),
+        historyBody: document.getElementById('historyBody')
+    };
+}
 
-ui.logDate.value = new Date().toISOString().split('T')[0];
+let ui = {};
+
+function initApp() {
+    ui = getUIElements();
+    if (ui.logDate && !ui.logDate.value) {
+        ui.logDate.value = new Date().toISOString().split('T')[0];
+    }
+    
+    applyPreferencesEngineState();
+
+    const inputs = document.querySelectorAll('input[type="number"]');
+    inputs.forEach(i => i.addEventListener('input', calculateAndCompare));
+}
 
 function switchTab(targetViewId, element) {
     const panels = document.querySelectorAll('.view-panel');
     const tabs = document.querySelectorAll('.nav-tab');
     
     tabs.forEach(tab => tab.classList.remove('active'));
-    element.classList.add('active');
+    if (element) element.classList.add('active');
 
     panels.forEach(panel => {
         if(panel.classList.contains('active')) {
@@ -94,11 +123,13 @@ function switchTab(targetViewId, element) {
 
     setTimeout(() => {
         const targetPanel = document.getElementById(targetViewId);
-        targetPanel.classList.add('active');
-        setTimeout(() => {
-            targetPanel.style.opacity = '1';
-            targetPanel.style.transform = 'translateY(0)';
-        }, 50);
+        if (targetPanel) {
+            targetPanel.classList.add('active');
+            setTimeout(() => {
+                targetPanel.style.opacity = '1';
+                targetPanel.style.transform = 'translateY(0)';
+            }, 50);
+        }
     }, 200);
 
     if(targetViewId === 'adminView') {
@@ -111,39 +142,47 @@ function switchTab(targetViewId, element) {
 }
 
 function renderVocabularyTags() {
-    const currentDeck = document.getElementById('vocabExplorerFilter').value;
+    const filterEl = document.getElementById('vocabExplorerFilter');
     const container = document.getElementById('vocabDeckTags');
+    if (!filterEl || !container) return;
+
+    const currentDeck = filterEl.value;
     container.innerHTML = '';
 
-    systemVocab[currentDeck].forEach((word, index) => {
-        const tag = document.createElement('span');
-        tag.className = 'keyword-tag';
-        
-        const labelNode = document.createTextNode(word + " ");
-        tag.appendChild(labelNode);
-        
-        const delBtn = document.createElement('button');
-        delBtn.textContent = 'x';
-        delBtn.onclick = function() { deleteKeyword(currentDeck, index); };
-        
-        tag.appendChild(delBtn);
-        container.appendChild(tag);
-    });
+    if (systemVocab[currentDeck]) {
+        systemVocab[currentDeck].forEach((word, index) => {
+            const tag = document.createElement('span');
+            tag.className = 'keyword-tag';
+            
+            const labelNode = document.createTextNode(word + " ");
+            tag.appendChild(labelNode);
+            
+            const delBtn = document.createElement('button');
+            delBtn.textContent = 'x';
+            delBtn.onclick = function() { deleteKeyword(currentDeck, index); };
+            
+            tag.appendChild(delBtn);
+            container.appendChild(tag);
+        });
+    }
 }
 
 function addNewKeyword() {
-    const category = document.getElementById('vocabTargetCategory').value;
+    const categoryEl = document.getElementById('vocabTargetCategory');
     const textInput = document.getElementById('newVocabWord');
+    if (!categoryEl || !textInput) return;
+
+    const category = categoryEl.value;
     const targetWord = textInput.value.toLowerCase().trim();
 
     if(!targetWord) return alert("Please type a valid word.");
+    if(!systemVocab[category]) systemVocab[category] = [];
     if(systemVocab[category].includes(targetWord)) return alert("Keyword allocation exists.");
 
     systemVocab[category].push(targetWord);
     localStorage.setItem('sys_vocabulary', JSON.stringify(systemVocab));
     textInput.value = '';
     
-    document.getElementById('vocabTargetCategory').value = category;
     renderVocabularyTags();
 }
 
@@ -157,17 +196,27 @@ function deleteKeyword(category, index) {
 }
 
 function syncPreferencesUIElements() {
-    document.getElementById('siteThemeSelector').value = systemPrefs.theme;
-    document.getElementById('siteRadiusSelector').value = systemPrefs.radius;
-    document.getElementById('scalingFactorSelector').value = systemPrefs.scalingFactor;
-    document.getElementById('siteCurrencySelector').value = systemPrefs.currency || 'GHS';
+    const themeSel = document.getElementById('siteThemeSelector');
+    const radiusSel = document.getElementById('siteRadiusSelector');
+    const scalingSel = document.getElementById('scalingFactorSelector');
+    const currencySel = document.getElementById('siteCurrencySelector');
+
+    if (themeSel) themeSel.value = systemPrefs.theme;
+    if (radiusSel) radiusSel.value = systemPrefs.radius;
+    if (scalingSel) scalingSel.value = systemPrefs.scalingFactor;
+    if (currencySel) currencySel.value = systemPrefs.currency || 'GHS';
 }
 
 function commitAndSecurePreferences() {
-    systemPrefs.theme = document.getElementById('siteThemeSelector').value;
-    systemPrefs.radius = document.getElementById('siteRadiusSelector').value;
-    systemPrefs.scalingFactor = document.getElementById('scalingFactorSelector').value;
-    systemPrefs.currency = document.getElementById('siteCurrencySelector').value;
+    const themeSel = document.getElementById('siteThemeSelector');
+    const radiusSel = document.getElementById('siteRadiusSelector');
+    const scalingSel = document.getElementById('scalingFactorSelector');
+    const currencySel = document.getElementById('siteCurrencySelector');
+
+    if (themeSel) systemPrefs.theme = themeSel.value;
+    if (radiusSel) systemPrefs.radius = radiusSel.value;
+    if (scalingSel) systemPrefs.scalingFactor = scalingSel.value;
+    if (currencySel) systemPrefs.currency = currencySel.value;
 
     localStorage.setItem('sys_preferences', JSON.stringify(systemPrefs));
     applyPreferencesEngineState();
@@ -176,7 +225,7 @@ function commitAndSecurePreferences() {
 
 function applyPreferencesEngineState() {
     const smartLabelEl = document.getElementById('smartLabel');
-    smartLabelEl.textContent = 'Smart Classifier Input';
+    if (smartLabelEl) smartLabelEl.textContent = 'Smart Classifier Input';
 
     rootContainer.style.setProperty('--radius-main', systemPrefs.radius);
     rootContainer.style.setProperty('--radius-inner', systemPrefs.radius === '0px' ? '0px' : '6px');
@@ -204,9 +253,13 @@ function applyPreferencesEngineState() {
 }
 
 function classifyItem() {
-    const itemName = document.getElementById('smartItem').value.toLowerCase().trim();
-    const amount = parseFloat(document.getElementById('smartAmount').value);
+    const itemEl = document.getElementById('smartItem');
+    const amountEl = document.getElementById('smartAmount');
     const resultDiv = document.getElementById('classificationResult');
+    if (!itemEl || !amountEl || !resultDiv) return;
+
+    const itemName = itemEl.value.toLowerCase().trim();
+    const amount = parseFloat(amountEl.value);
 
     resultDiv.innerHTML = '';
     if (!itemName || isNaN(amount) || amount <= 0) {
@@ -223,13 +276,13 @@ function classifyItem() {
     let targetInput = ui.expenses;
     let explanation = "";
 
-    if (systemVocab.income.some(kw => itemName.includes(kw))) {
+    if (systemVocab.income && systemVocab.income.some(kw => itemName.includes(kw))) {
         category = "Income"; color = "var(--color-income)"; targetInput = ui.income;
         explanation = `This is classified as Income because it represents an inbound inflow or influx of capital increasing overall cash reservoirs. Tip: Funnel a fixed ratio of this entry directly to purchase assets!`;
-    } else if (systemVocab.asset.some(kw => itemName.includes(kw))) {
+    } else if (systemVocab.asset && systemVocab.asset.some(kw => itemName.includes(kw))) {
         category = "Asset"; color = "var(--color-asset)"; targetInput = ui.assets;
         explanation = `This is classified as an Asset because it holds future value retrieval property equity options or builds yield. Tip: Protect your asset holdings; these act as engines multiplying long term security layouts.`;
-    } else if (systemVocab.liability.some(kw => itemName.includes(kw))) {
+    } else if (systemVocab.liability && systemVocab.liability.some(kw => itemName.includes(kw))) {
         category = "Liability"; color = "var(--color-liability)"; targetInput = ui.liabilities;
         explanation = `This is classified as a Liability because it is an outstanding financial commitment or leverage drag drawing value backwards. Tip: Prioritize extra balances into erasing liabilities early to avoid structural performance compound friction fees.`;
     } else {
@@ -241,8 +294,10 @@ function classifyItem() {
         }
     }
 
-    const currentVal = parseFloat(targetInput.value) || 0;
-    targetInput.value = (currentVal + amount).toFixed(2);
+    if (targetInput) {
+        const currentVal = parseFloat(targetInput.value) || 0;
+        targetInput.value = (currentVal + amount).toFixed(2);
+    }
     
     calculateAndCompare();
 
@@ -272,83 +327,102 @@ function classifyItem() {
     resultDiv.appendChild(headDiv);
     resultDiv.appendChild(bodyDiv);
     
-    document.getElementById('smartItem').value = '';
-    document.getElementById('smartAmount').value = '';
+    itemEl.value = '';
+    amountEl.value = '';
 }
 
 function calculateAndCompare() {
-    const pocket = parseFloat(ui.pocketMoney.value) || 0;
-    const saved = parseFloat(ui.savedMoney.value) || 0;
+    if (!ui.assets) ui = getUIElements();
+    if (!ui.assets) return;
+
+    const pocket = parseFloat(ui.pocketMoney?.value) || 0;
+    const saved = parseFloat(ui.savedMoney?.value) || 0;
     
-    const baseAssets = parseFloat(ui.assets.value) || 0;
+    const baseAssets = parseFloat(ui.assets?.value) || 0;
     const assets = baseAssets + pocket + saved;
     
-    const liabilities = parseFloat(ui.liabilities.value) || 0;
-    const income = parseFloat(ui.income.value) || 0;
-    const expenses = parseFloat(ui.expenses.value) || 0;
+    const liabilities = parseFloat(ui.liabilities?.value) || 0;
+    const income = parseFloat(ui.income?.value) || 0;
+    const expenses = parseFloat(ui.expenses?.value) || 0;
 
-    ui.sketchIncome.textContent = formatter.format(income);
-    ui.sketchExpenses.textContent = formatter.format(expenses);
-    ui.sketchAssets.textContent = formatter.format(assets);
-    ui.sketchLiabilities.textContent = formatter.format(liabilities);
+    if (ui.sketchIncome) ui.sketchIncome.textContent = formatter.format(income);
+    if (ui.sketchExpenses) ui.sketchExpenses.textContent = formatter.format(expenses);
+    if (ui.sketchAssets) ui.sketchAssets.textContent = formatter.format(assets);
+    if (ui.sketchLiabilities) ui.sketchLiabilities.textContent = formatter.format(liabilities);
 
     const totalBalanceSheet = assets + liabilities;
     const totalVerticalSum = income + expenses + totalBalanceSheet;
     const padFactor = parseFloat(systemPrefs.scalingFactor) || 0.15;
 
     const dashboardEl = document.getElementById('dashboardView');
-    if (totalVerticalSum === 0) {
-        dashboardEl.style.setProperty('--flex-income', '1');
-        dashboardEl.style.setProperty('--flex-expenses', '1');
-        dashboardEl.style.setProperty('--flex-split', '1');
-    } else {
-        const baseValue = totalVerticalSum * padFactor;
-        dashboardEl.style.setProperty('--flex-income', `${income + baseValue}`);
-        dashboardEl.style.setProperty('--flex-expenses', `${expenses + baseValue}`);
-        dashboardEl.style.setProperty('--flex-split', `${totalBalanceSheet + baseValue}`);
-        
-        const horizontalBase = (totalBalanceSheet || 1) * (padFactor * 1.3);
-        dashboardEl.style.setProperty('--flex-assets', `${assets + horizontalBase}`);
-        dashboardEl.style.setProperty('--flex-liabilities', `${liabilities + horizontalBase}`);
+    if (dashboardEl) {
+        if (totalVerticalSum === 0) {
+            dashboardEl.style.setProperty('--flex-income', '1');
+            dashboardEl.style.setProperty('--flex-expenses', '1');
+            dashboardEl.style.setProperty('--flex-split', '1');
+        } else {
+            const baseValue = totalVerticalSum * padFactor;
+            dashboardEl.style.setProperty('--flex-income', `${income + baseValue}`);
+            dashboardEl.style.setProperty('--flex-expenses', `${expenses + baseValue}`);
+            dashboardEl.style.setProperty('--flex-split', `${totalBalanceSheet + baseValue}`);
+            
+            const horizontalBase = (totalBalanceSheet || 1) * (padFactor * 1.3);
+            dashboardEl.style.setProperty('--flex-assets', `${assets + horizontalBase}`);
+            dashboardEl.style.setProperty('--flex-liabilities', `${liabilities + horizontalBase}`);
+        }
     }
 
     const grandTotal = assets + liabilities + income + expenses;
     if (grandTotal === 0) {
-        ui.barAsset.style.width = ui.barIncome.style.width = ui.barExpense.style.width = ui.barLiability.style.width = '25%';
-        ui.pctAsset.textContent = ui.pctIncome.textContent = ui.pctExpense.textContent = ui.pctLiability.textContent = '0%';
+        if(ui.barAsset) ui.barAsset.style.width = ui.barIncome.style.width = ui.barExpense.style.width = ui.barLiability.style.width = '25%';
+        if(ui.pctAsset) ui.pctAsset.textContent = ui.pctIncome.textContent = ui.pctExpense.textContent = ui.pctLiability.textContent = '0%';
     } else {
         const aP = (assets / grandTotal) * 100; const iP = (income / grandTotal) * 100;
         const eP = (expenses / grandTotal) * 100; const lP = (liabilities / grandTotal) * 100;
 
-        ui.barAsset.style.width = `${aP}%`; ui.barIncome.style.width = `${iP}%`;
-        ui.barExpense.style.width = `${eP}%`; ui.barLiability.style.width = `${lP}%`;
+        if(ui.barAsset) ui.barAsset.style.width = `${aP}%`; 
+        if(ui.barIncome) ui.barIncome.style.width = `${iP}%`;
+        if(ui.barExpense) ui.barExpense.style.width = `${eP}%`; 
+        if(ui.barLiability) ui.barLiability.style.width = `${lP}%`;
 
-        ui.pctAsset.textContent = `${aP.toFixed(1)}%`; ui.pctIncome.textContent = `${iP.toFixed(1)}%`;
-        ui.pctExpense.textContent = `${eP.toFixed(1)}%`; ui.pctLiability.textContent = `${lP.toFixed(1)}%`;
+        if(ui.pctAsset) ui.pctAsset.textContent = `${aP.toFixed(1)}%`; 
+        if(ui.pctIncome) ui.pctIncome.textContent = `${iP.toFixed(1)}%`;
+        if(ui.pctExpense) ui.pctExpense.textContent = `${eP.toFixed(1)}%`; 
+        if(ui.pctLiability) ui.pctLiability.textContent = `${lP.toFixed(1)}%`;
     }
 
     const netWorth = assets - liabilities;
-    ui.nwDisplay.textContent = formatter.format(netWorth);
-    ui.nwDisplay.className = `value ${netWorth > 0 ? 'good' : (netWorth < 0 ? 'bad' : '')}`;
-    ui.nwStatus.textContent = netWorth > 0 ? 'Solvent' : (netWorth < 0 ? 'Insolvent' : 'Breakeven');
-    ui.nwStatus.className = `status ${netWorth > 0 ? 'good' : (netWorth < 0 ? 'bad' : '')}`;
+    if(ui.nwDisplay) {
+        ui.nwDisplay.textContent = formatter.format(netWorth);
+        ui.nwDisplay.className = `value ${netWorth > 0 ? 'good' : (netWorth < 0 ? 'bad' : '')}`;
+    }
+    if(ui.nwStatus) {
+        ui.nwStatus.textContent = netWorth > 0 ? 'Solvent' : (netWorth < 0 ? 'Insolvent' : 'Breakeven');
+        ui.nwStatus.className = `status ${netWorth > 0 ? 'good' : (netWorth < 0 ? 'bad' : '')}`;
+    }
 
     const netIncome = income - expenses;
-    ui.niDisplay.textContent = formatter.format(netIncome);
-    ui.niDisplay.className = `value ${netIncome > 0 ? 'good' : (netIncome < 0 ? 'bad' : '')}`;
-    ui.niStatus.textContent = netIncome > 0 ? 'Positive Flow' : (netIncome < 0 ? 'Negative Flow' : 'Breakeven');
-    ui.niStatus.className = `status ${netIncome > 0 ? 'good' : (netIncome < 0 ? 'bad' : '')}`;
+    if(ui.niDisplay) {
+        ui.niDisplay.textContent = formatter.format(netIncome);
+        ui.niDisplay.className = `value ${netIncome > 0 ? 'good' : (netIncome < 0 ? 'bad' : '')}`;
+    }
+    if(ui.niStatus) {
+        ui.niStatus.textContent = netIncome > 0 ? 'Positive Flow' : (netIncome < 0 ? 'Negative Flow' : 'Breakeven');
+        ui.niStatus.className = `status ${netIncome > 0 ? 'good' : (netIncome < 0 ? 'bad' : '')}`;
+    }
 
-    ui.advisorPanel.textContent = '';
-    const adviceBlocks = generateWealthAdvice(assets, liabilities, income, expenses);
-    adviceBlocks.forEach(itemText => {
-        const itemDiv = document.createElement('div');
-        itemDiv.className = 'blueprint-item';
-        itemDiv.textContent = itemText;
-        ui.advisorPanel.appendChild(itemDiv);
-    });
-    if(adviceBlocks.length === 0) {
-        ui.advisorPanel.textContent = "Enter numbers to isolate exactly which quadrant holds leverage logic runtime properties.";
+    if(ui.advisorPanel) {
+        ui.advisorPanel.textContent = '';
+        const adviceBlocks = generateWealthAdvice(assets, liabilities, income, expenses);
+        adviceBlocks.forEach(itemText => {
+            const itemDiv = document.createElement('div');
+            itemDiv.className = 'blueprint-item';
+            itemDiv.textContent = itemText;
+            ui.advisorPanel.appendChild(itemDiv);
+        });
+        if(adviceBlocks.length === 0) {
+            ui.advisorPanel.textContent = "Enter numbers to isolate exactly which quadrant holds leverage logic runtime properties.";
+        }
     }
 }
 
@@ -368,10 +442,11 @@ function generateWealthAdvice(assets, liabilities, income, expenses) {
     return logs;
 }
 
-function getHistory() { return JSON.parse(localStorage.getItem('wealthDashboardHistory')) || []; }
+function getHistory() { return safeGetLocalStorage('wealthDashboardHistory', []); }
 
 function saveCurrentDay() {
-    const date = ui.logDate.value;
+    if (!ui.logDate) ui = getUIElements();
+    const date = ui.logDate ? ui.logDate.value : new Date().toISOString().split('T')[0];
     if (!date) return alert("Select standard valid log date parameter.");
     
     let history = getHistory();
@@ -384,11 +459,11 @@ function saveCurrentDay() {
     }
 
     const currentTimeStr = new Date().toLocaleTimeString('en-US', { hour12: false });
-    const pocket = parseFloat(ui.pocketMoney.value) || 0;
-    const saved = parseFloat(ui.savedMoney.value) || 0;
-    const baseAssets = parseFloat(ui.assets.value) || 0;
+    const pocket = parseFloat(ui.pocketMoney?.value) || 0;
+    const saved = parseFloat(ui.savedMoney?.value) || 0;
+    const baseAssets = parseFloat(ui.assets?.value) || 0;
     const calculatedAssets = baseAssets + pocket + saved;
-    const liabilities = parseFloat(ui.liabilities.value) || 0;
+    const liabilities = parseFloat(ui.liabilities?.value) || 0;
     
     const entry = {
         id: existIndex !== -1 ? history[existIndex].id : Date.now(),
@@ -399,8 +474,8 @@ function saveCurrentDay() {
         saved: saved,
         calculatedAssets: calculatedAssets,
         liabilities: liabilities,
-        income: parseFloat(ui.income.value) || 0,
-        expenses: parseFloat(ui.expenses.value) || 0,
+        income: parseFloat(ui.income?.value) || 0,
+        expenses: parseFloat(ui.expenses?.value) || 0,
         netWorth: calculatedAssets - liabilities
     };
 
@@ -413,18 +488,20 @@ function saveCurrentDay() {
     history.sort((a, b) => new Date(b.date) - new Date(a.date));
     localStorage.setItem('wealthDashboardHistory', JSON.stringify(history));
     renderHistoryTable();
+    alert("Day saved successfully!");
 }
 
 function editEntry(id) {
     const entry = getHistory().find(item => item.id === id);
     if (entry) {
-        ui.assets.value = entry.assets || ""; 
-        ui.liabilities.value = entry.liabilities || "";
-        ui.income.value = entry.income || ""; 
-        ui.expenses.value = entry.expenses || "";
-        ui.pocketMoney.value = entry.pocket || "";
-        ui.savedMoney.value = entry.saved || "";
-        ui.logDate.value = entry.date;
+        if (!ui.assets) ui = getUIElements();
+        if(ui.assets) ui.assets.value = entry.assets || ""; 
+        if(ui.liabilities) ui.liabilities.value = entry.liabilities || "";
+        if(ui.income) ui.income.value = entry.income || ""; 
+        if(ui.expenses) ui.expenses.value = entry.expenses || "";
+        if(ui.pocketMoney) ui.pocketMoney.value = entry.pocket || "";
+        if(ui.savedMoney) ui.savedMoney.value = entry.saved || "";
+        if(ui.logDate) ui.logDate.value = entry.date;
         calculateAndCompare();
         switchTab('dashboardView', document.querySelectorAll('.nav-tab')[0]);
     }
@@ -439,7 +516,11 @@ function deleteEntry(id) {
 }
 
 function renderHistoryTable() {
-    const history = getHistory(); ui.historyBody.innerHTML = "";
+    if (!ui.historyBody) ui = getUIElements();
+    if (!ui.historyBody) return;
+
+    const history = getHistory(); 
+    ui.historyBody.innerHTML = "";
     if (history.length === 0) {
         const tr = document.createElement('tr');
         const td = document.createElement('td');
@@ -511,15 +592,19 @@ function renderHistoryTable() {
 }
 
 function saveSystemGoal() {
-    const type = document.getElementById('goalType').value;
-    const amount = parseFloat(document.getElementById('goalAmount').value);
+    const typeEl = document.getElementById('goalType');
+    const amountEl = document.getElementById('goalAmount');
+    if (!typeEl || !amountEl) return;
+
+    const type = typeEl.value;
+    const amount = parseFloat(amountEl.value);
     
     if (isNaN(amount) || amount <= 0) return alert("Please specify a valid numeric objective threshold.");
     
     const newGoal = { id: Date.now(), type, amount };
     systemGoals.push(newGoal);
     localStorage.setItem('sys_goals', JSON.stringify(systemGoals));
-    document.getElementById('goalAmount').value = '';
+    amountEl.value = '';
     calculateSuccessMetrics();
 }
 
@@ -530,40 +615,41 @@ function deleteGoal(id) {
 }
 
 function calculateSuccessMetrics() {
+    if (!ui.assets) ui = getUIElements();
     const history = getHistory();
     
     const deltaValEl = document.getElementById('deltaValue');
     const deltaStatusEl = document.getElementById('deltaStatus');
-    if(!deltaValEl || !deltaStatusEl) return;
-    
-    if (history.length >= 2) {
-        const currentDayNW = history[0].netWorth;
-        const previousDayNW = history[1].netWorth;
-        const netDelta = currentDayNW - previousDayNW;
-        
-        deltaValEl.textContent = formatter.format(netDelta);
-        if(netDelta > 0) {
-            deltaValEl.className = "value good";
-            deltaStatusEl.textContent = `Gained ground compared to your previous entry on ${history[1].date}.`;
-        } else if(netDelta < 0) {
-            deltaValEl.className = "value bad";
-            deltaStatusEl.textContent = `Loss tracked compared to your previous entry on ${history[1].date}.`;
+    if(deltaValEl && deltaStatusEl) {
+        if (history.length >= 2) {
+            const currentDayNW = history[0].netWorth;
+            const previousDayNW = history[1].netWorth;
+            const netDelta = currentDayNW - previousDayNW;
+            
+            deltaValEl.textContent = formatter.format(netDelta);
+            if(netDelta > 0) {
+                deltaValEl.className = "value good";
+                deltaStatusEl.textContent = `Gained ground compared to your previous entry on ${history[1].date}.`;
+            } else if(netDelta < 0) {
+                deltaValEl.className = "value bad";
+                deltaStatusEl.textContent = `Loss tracked compared to your previous entry on ${history[1].date}.`;
+            } else {
+                deltaValEl.className = "value";
+                deltaStatusEl.textContent = `Perfect performance equilibrium maintained since ${history[1].date}.`;
+            }
         } else {
+            deltaValEl.textContent = formatter.format(0);
             deltaValEl.className = "value";
-            deltaStatusEl.textContent = `Perfect performance equilibrium maintained since ${history[1].date}.`;
+            deltaStatusEl.textContent = "Log at least two individual dates inside your history grid to compute progress steps.";
         }
-    } else {
-        deltaValEl.textContent = formatter.format(0);
-        deltaValEl.className = "value";
-        deltaStatusEl.textContent = "Log at least two individual dates inside your history grid to compute progress steps.";
     }
 
-    const pocket = parseFloat(ui.pocketMoney.value) || 0;
-    const saved = parseFloat(ui.savedMoney.value) || 0;
-    const assets = (parseFloat(ui.assets.value) || 0) + pocket + saved;
-    const liabilities = parseFloat(ui.liabilities.value) || 0;
-    const income = parseFloat(ui.income.value) || 0;
-    const expenses = parseFloat(ui.expenses.value) || 0;
+    const pocket = parseFloat(ui.pocketMoney?.value) || 0;
+    const saved = parseFloat(ui.savedMoney?.value) || 0;
+    const assets = (parseFloat(ui.assets?.value) || 0) + pocket + saved;
+    const liabilities = parseFloat(ui.liabilities?.value) || 0;
+    const income = parseFloat(ui.income?.value) || 0;
+    const expenses = parseFloat(ui.expenses?.value) || 0;
 
     let score = 50; 
     if (assets > liabilities) score += 15; else if (assets < liabilities) score -= 15;
@@ -571,13 +657,17 @@ function calculateSuccessMetrics() {
     if (saved > 0 || pocket > 0) score += 10;
     if (score > 100) score = 100; if (score < 0) score = 0;
 
-    document.getElementById('scoreValue').textContent = `${score} / 100`;
+    const scoreValEl = document.getElementById('scoreValue');
     const statusEl = document.getElementById('scoreStatus');
-    if(score >= 75) { statusEl.textContent = "Excellent Health Profile Stability"; statusEl.className = "status good"; }
-    else if(score >= 45) { statusEl.textContent = "Standard Operational Baseline Standing"; statusEl.className = "status"; }
-    else { statusEl.textContent = "Vulnerable Leverage Exposure Detected"; statusEl.className = "status bad"; }
+    if (scoreValEl) scoreValEl.textContent = `${score} / 100`;
+    if(statusEl) {
+        if(score >= 75) { statusEl.textContent = "Excellent Health Profile Stability"; statusEl.className = "status good"; }
+        else if(score >= 45) { statusEl.textContent = "Standard Operational Baseline Standing"; statusEl.className = "status"; }
+        else { statusEl.textContent = "Vulnerable Leverage Exposure Detected"; statusEl.className = "status bad"; }
+    }
 
     const container = document.getElementById('activeGoalsDisplay');
+    if (!container) return;
     container.innerHTML = '';
     
     if(systemGoals.length === 0) {
@@ -673,6 +763,7 @@ let calcExpression = "";
 
 function pressNum(num) {
     const screen = document.getElementById('calcScreen');
+    if (!screen) return;
     if (screen.textContent === "0" && num !== "." || calcClearOnNextInput) {
         calcExpression = "";
         calcClearOnNextInput = false;
@@ -683,6 +774,7 @@ function pressNum(num) {
 }
 
 function pressOp(op) {
+    const screen = document.getElementById('calcScreen');
     calcClearOnNextInput = false;
     if (!calcExpression) {
         if (op === "-") calcExpression = "-";
@@ -694,17 +786,19 @@ function pressOp(op) {
     } else {
         calcExpression += op;
     }
-    document.getElementById('calcScreen').textContent = calcExpression;
+    if (screen) screen.textContent = calcExpression;
 }
 
 function clearCalc() {
     calcExpression = "";
-    document.getElementById('calcScreen').textContent = "0";
+    const screen = document.getElementById('calcScreen');
+    if (screen) screen.textContent = "0";
     calcClearOnNextInput = false;
 }
 
 function runCalc() {
     const screen = document.getElementById('calcScreen');
+    if (!screen) return;
     try {
         const sanitized = calcExpression.replace(/[^0-9\+\-\*\/\.]/g, '');
         if (!sanitized) return;
@@ -735,10 +829,10 @@ function triggerSystemFactoryReset() {
 
 function exportSystemData() {
     const exportData = {
-        sys_vocabulary: JSON.parse(localStorage.getItem('sys_vocabulary')) || defaultVocabulary,
-        sys_preferences: JSON.parse(localStorage.getItem('sys_preferences')) || defaultPreferences,
-        sys_goals: JSON.parse(localStorage.getItem('sys_goals')) || [],
-        wealthDashboardHistory: JSON.parse(localStorage.getItem('wealthDashboardHistory')) || []
+        sys_vocabulary: safeGetLocalStorage('sys_vocabulary', defaultVocabulary),
+        sys_preferences: safeGetLocalStorage('sys_preferences', defaultPreferences),
+        sys_goals: safeGetLocalStorage('sys_goals', []),
+        wealthDashboardHistory: safeGetLocalStorage('wealthDashboardHistory', [])
     };
     const dataStr = "data:text/json;charset=utf-8," + encodeURIComponent(JSON.stringify(exportData, null, 2));
     const downloadAnchor = document.createElement('a');
@@ -794,27 +888,36 @@ function importSystemData(event) {
     reader.readAsText(file);
 }
 
-window.onload = function() { applyPreferencesEngineState(); };
-inputs.forEach(i => i.addEventListener('input', calculateAndCompare));
+// Guaranteed execution on DOM load for mobile code editors (like Spck Editor)
+if (document.readyState === 'loading') {
+    document.addEventListener('DOMContentLoaded', initApp);
+} else {
+    initApp();
+}
 
 (function addMultiDayComparison() {
-    const successGrid = document.querySelector('#successView .success-metrics-grid');
-    if (!successGrid) return;
+    function setupMultiDay() {
+        const successGrid = document.querySelector('#successView .success-metrics-grid');
+        if (!successGrid) return;
 
-    const multiDayCard = document.createElement('div');
-    multiDayCard.className = 'result-card';
-    multiDayCard.id = 'multiDayComparisonCard';
-    
-    multiDayCard.innerHTML = `
-        <h3 style="color:var(--text-secondary); font-size:0.85rem;">7-Day Rolling Financial Shift</h3>
-        <div class="value" id="multiDayDeltaValue">GH₵0.00</div>
-        <div class="status" id="multiDayDeltaStatus">Awaiting historical depth for a 7-day span.</div>
-    `;
+        if (document.getElementById('multiDayComparisonCard')) return;
 
-    successGrid.appendChild(multiDayCard);
+        const multiDayCard = document.createElement('div');
+        multiDayCard.className = 'result-card';
+        multiDayCard.id = 'multiDayComparisonCard';
+        
+        multiDayCard.innerHTML = `
+            <h3 style="color:var(--text-secondary); font-size:0.85rem;">7-Day Rolling Financial Shift</h3>
+            <div class="value" id="multiDayDeltaValue">GH₵0.00</div>
+            <div class="status" id="multiDayDeltaStatus">Awaiting historical depth for a 7-day span.</div>
+        `;
+
+        successGrid.appendChild(multiDayCard);
+        updateMultiDayMetrics();
+    }
 
     function updateMultiDayMetrics() {
-        const historyData = JSON.parse(localStorage.getItem('wealthDashboardHistory')) || [];
+        const historyData = safeGetLocalStorage('wealthDashboardHistory', []);
         const valEl = document.getElementById('multiDayDeltaValue');
         const statusEl = document.getElementById('multiDayDeltaStatus');
         
@@ -828,7 +931,7 @@ inputs.forEach(i => i.addEventListener('input', calculateAndCompare));
             const pastDate = historyData[targetIndex].date;
             
             const multiDayDelta = currentNW - pastNW;
-            const currentCurrency = JSON.parse(localStorage.getItem('sys_preferences'))?.currency || 'GHS';
+            const currentCurrency = safeGetLocalStorage('sys_preferences', defaultPreferences).currency || 'GHS';
             
             const currencyConfig = {
                 'GHS': { locale: 'en-GH', code: 'GHS', symbol: 'GH₵' },
@@ -872,11 +975,15 @@ inputs.forEach(i => i.addEventListener('input', calculateAndCompare));
         }
     }
 
-    updateMultiDayMetrics();
+    if (document.readyState === 'loading') {
+        document.addEventListener('DOMContentLoaded', setupMultiDay);
+    } else {
+        setupMultiDay();
+    }
     
-    document.querySelectorAll('.nav-tab').forEach((tab, idx) => {
-        if (idx === 1) {
-            tab.addEventListener('click', updateMultiDayMetrics);
+    document.addEventListener('click', function(e) {
+        if (e.target.matches('.nav-tab')) {
+            setTimeout(updateMultiDayMetrics, 100);
         }
     });
 })();
