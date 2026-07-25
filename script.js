@@ -1,12 +1,8 @@
-// Let's look closely at why it might not be working in your environment (especially on a mobile editor like Spck Editor). 
-// The issues usually come down to DOM elements not being fully loaded when the script runs, JSON parsing exceptions on corrupt localStorage, or scope issues with event handlers.
-// Here is the fully patched and robust version of your script with defensive checks added to prevent silent failures:
-
 const defaultVocabulary = {
     income: ['job', 'salary', 'wage', 'pay', 'bonus', 'dividend', 'profit', 'sales', 'freelance', 'commission', 'grant', 'allowance', 'payout', 'interest earned', 'royalty', 'gig', 'airdrop', 'staking rewards', 'gift money', 'funding', 'refund', 'reimbursement', 'side hustle', 'tips', 'revenue', 'earnings'],
     asset: ['house', 'stock', 'bond', 'crypto', 'bitcoin', 'gold', 'real estate', 'land', 'investment', 'savings', 'equity', 'fund', 'property', 'ethereum', 'solana', 'usdt', 'portfolio', 'share', 'cash account', 'forex balance', 'nft', 'equipment', 'machinery', 'vehicle', 'car asset', 'gold bars', 'silver', 'wallet balance'],
     liability: ['loan', 'debt', 'mortgage', 'credit', 'borrow', 'overdraft', 'owe', 'paylater', 'leverage margin', 'funding fee debt', 'bill outstanding', 'dues', 'arrears', 'taxes owed', 'pawn'],
-    expense: ['food', 'clothes', 'rent', 'gas', 'car', 'utility', 'bill', 'grocery', 'groceries', 'subscription', 'tax', 'fee', 'fees', 'shoe', 'shirt', 'jacket', 'meal', 'restaurant', 'transport', 'wifi', 'internet', 'electricity', 'water', 'insurance', 'entertainment', 'movie', 'game', 'software', 'hosting', 'domain', 'data bundle', 'airtime', 'credit unit', 'snacks', 'drinks', 'lunch', 'dinner', 'uber', 'bolt', 'repairs', 'maintenance']
+    expense: ['clothes', 'rent', 'gas', 'car', 'utility', 'bill', 'grocery', 'groceries', 'subscription', 'tax', 'fee', 'fees', 'shoe', 'shirt', 'jacket', 'meal', 'restaurant', 'transport', 'wifi', 'internet', 'electricity', 'water', 'insurance', 'entertainment', 'movie', 'game', 'software', 'hosting', 'domain', 'data bundle', 'airtime', 'credit unit', 'snacks', 'drinks', 'lunch', 'dinner', 'uber', 'bolt', 'repairs', 'maintenance']
 };
 
 const defaultPreferences = {
@@ -287,7 +283,7 @@ function classifyItem() {
         explanation = `This is classified as a Liability because it is an outstanding financial commitment or leverage drag drawing value backwards. Tip: Prioritize extra balances into erasing liabilities early to avoid structural performance compound friction fees.`;
     } else {
         category = "Expense"; color = "var(--color-expense)"; targetInput = ui.expenses;
-        if(itemName.includes("food") || itemName.includes("grocery") || itemName.includes("groceries") || itemName.includes("restaurant")) {
+        if(itemName.includes("grocery") || itemName.includes("groceries") || itemName.includes("restaurant")) {
             explanation = `This is classified as an Expense because it's a consumption cost where money leaves without returning equity. Try planning weekly bulk meal preps, setting an explicit budget cap before tracking checkout menus, or cutting down high restaurant markups to preserve structural cash balance velocity.`;
         } else {
             explanation = `This is classified as an Expense because it tracks immediate outflow and lifestyle consumption drain metrics. Tip: Review recurring components to see if they can be minimized or substituted for long term gains.`;
@@ -827,22 +823,63 @@ function triggerSystemFactoryReset() {
     }
 }
 
-function exportSystemData() {
+// ==========================================
+// PATCHED EXPORT FUNCTION (Cross-Environment)
+// ==========================================
+async function exportSystemData() {
     const exportData = {
         sys_vocabulary: safeGetLocalStorage('sys_vocabulary', defaultVocabulary),
         sys_preferences: safeGetLocalStorage('sys_preferences', defaultPreferences),
         sys_goals: safeGetLocalStorage('sys_goals', []),
         wealthDashboardHistory: safeGetLocalStorage('wealthDashboardHistory', [])
     };
-    const dataStr = "data:text/json;charset=utf-8," + encodeURIComponent(JSON.stringify(exportData, null, 2));
-    const downloadAnchor = document.createElement('a');
-    downloadAnchor.setAttribute("href", dataStr);
-    downloadAnchor.setAttribute("download", `financial_dashboard_backup_${new Date().toISOString().split('T')[0]}.json`);
-    document.body.appendChild(downloadAnchor);
-    downloadAnchor.click();
-    downloadAnchor.remove();
+    
+    const jsonString = JSON.stringify(exportData, null, 2);
+    const fileName = `financial_dashboard_backup_${new Date().toISOString().split('T')[0]}.json`;
+
+    // 1. Try modern File System Access API first (Works seamlessly on deployed live HTTPS sites)
+    if (window.showSaveFilePicker) {
+        try {
+            const handle = await window.showSaveFilePicker({
+                suggestedName: fileName,
+                types: [{
+                    description: 'JSON Backup File',
+                    accept: { 'application/json': ['.json'] }
+                }]
+            });
+            const writable = await handle.createWritable();
+            await writable.write(jsonString);
+            await writable.close();
+            alert("Export completed successfully!");
+            return;
+        } catch (err) {
+            if (err.name !== 'AbortError') {
+                console.warn("File picker skipped/failed, using fallback:", err);
+            } else {
+                return; // User cancelled
+            }
+        }
+    }
+
+    // 2. Robust Fallback method using Blob and hidden Anchor tag (Works offline in Spck Editor / Mobile WebViews)
+    try {
+        const blob = new Blob([jsonString], { type: 'application/json;charset=utf-8' });
+        const downloadAnchor = document.createElement('a');
+        downloadAnchor.href = URL.createObjectURL(blob);
+        downloadAnchor.download = fileName;
+        document.body.appendChild(downloadAnchor);
+        downloadAnchor.click();
+        document.body.removeChild(downloadAnchor);
+        setTimeout(() => URL.revokeObjectURL(downloadAnchor.href), 1000);
+    } catch (fallbackErr) {
+        console.error("Export fallback failed:", fallbackErr);
+        alert("Export failed. Please check browser permissions.");
+    }
 }
 
+// ==========================================
+// PATCHED IMPORT FUNCTION (Cross-Environment)
+// ==========================================
 function importSystemData(event) {
     if (!event || !event.target || !event.target.files) {
         const fileInput = document.createElement('input');
