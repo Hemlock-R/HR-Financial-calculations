@@ -824,7 +824,7 @@ function triggerSystemFactoryReset() {
 }
 
 // ==========================================
-// PATCHED EXPORT FUNCTION (Cross-Environment)
+// EXPORT FUNCTION (Cross-Environment)
 // ==========================================
 async function exportSystemData() {
     const exportData = {
@@ -837,7 +837,6 @@ async function exportSystemData() {
     const jsonString = JSON.stringify(exportData, null, 2);
     const fileName = `financial_dashboard_backup_${new Date().toISOString().split('T')[0]}.json`;
 
-    // 1. Try modern File System Access API first (Works seamlessly on deployed live HTTPS sites)
     if (window.showSaveFilePicker) {
         try {
             const handle = await window.showSaveFilePicker({
@@ -856,12 +855,11 @@ async function exportSystemData() {
             if (err.name !== 'AbortError') {
                 console.warn("File picker skipped/failed, using fallback:", err);
             } else {
-                return; // User cancelled
+                return;
             }
         }
     }
 
-    // 2. Robust Fallback method using Blob and hidden Anchor tag (Works offline in Spck Editor / Mobile WebViews)
     try {
         const blob = new Blob([jsonString], { type: 'application/json;charset=utf-8' });
         const downloadAnchor = document.createElement('a');
@@ -871,6 +869,7 @@ async function exportSystemData() {
         downloadAnchor.click();
         document.body.removeChild(downloadAnchor);
         setTimeout(() => URL.revokeObjectURL(downloadAnchor.href), 1000);
+        alert("Export completed successfully!");
     } catch (fallbackErr) {
         console.error("Export fallback failed:", fallbackErr);
         alert("Export failed. Please check browser permissions.");
@@ -878,16 +877,25 @@ async function exportSystemData() {
 }
 
 // ==========================================
-// PATCHED IMPORT FUNCTION (Cross-Environment)
+// PATCHED IMPORT FUNCTION (Mobile Android Fix)
 // ==========================================
 function importSystemData(event) {
     if (!event || !event.target || !event.target.files) {
+        let oldInput = document.getElementById('hiddenImportInput');
+        if (oldInput) oldInput.remove();
+
         const fileInput = document.createElement('input');
         fileInput.type = 'file';
-        fileInput.accept = '*/*'; 
+        fileInput.id = 'hiddenImportInput';
+        fileInput.accept = '.json,application/json';
+        fileInput.style.display = 'none';
+
         fileInput.onchange = function(e) {
             importSystemData(e);
+            fileInput.remove();
         };
+
+        document.body.appendChild(fileInput);
         fileInput.click();
         return;
     }
@@ -925,7 +933,6 @@ function importSystemData(event) {
     reader.readAsText(file);
 }
 
-// Guaranteed execution on DOM load for mobile code editors (like Spck Editor)
 if (document.readyState === 'loading') {
     document.addEventListener('DOMContentLoaded', initApp);
 } else {
