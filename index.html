@@ -80,8 +80,8 @@
             </div>
 
             <div class="results-section">
-                <div class="result-card"><h3 style="margin:0; color:var(--text-secondary); font-size:0.85rem;">Net Worth</h3><div class="value" id="netWorthDisplay">GH₵0.00</div><div class="status" id="netWorthStatus">-</div></div>
-                <div class="result-card"><h3 style="margin:0; color:var(--text-secondary); font-size:0.85rem;">Net Cash Flow</h3><div class="value" id="netIncomeDisplay">GH₵0.00</div><div class="status" id="netIncomeStatus">-</div></div>
+                <div class="result-card"><h3 style="margin:0; color:var(--text-secondary); font-size:0.85rem;">Net Worth</h3><div class="value" id="netWorthDisplay">GH₵0.00</div><div class="status" id="netWorthStatus">Breakeven</div></div>
+                <div class="result-card"><h3 style="margin:0; color:var(--text-secondary); font-size:0.85rem;">Net Cash Flow</h3><div class="value" id="netIncomeDisplay">GH₵0.00</div><div class="status" id="netIncomeStatus">Breakeven</div></div>
             </div>
 
             <div class="history-section">
@@ -265,9 +265,8 @@
                 <div style="display:flex; gap:1rem; flex-wrap:wrap; margin-top:0.5rem; align-items:center;">
                     <button class="btn-save btn-danger" onclick="triggerSystemFactoryReset()">Reset Factory Defaults</button>
                     <button class="btn-save" style="background-color: var(--color-income);" onclick="exportSystemData()">Export Data</button>
-                    <label class="btn-save" style="background-color: var(--color-asset); cursor:pointer; margin-bottom:0; display:inline-flex; align-items:center; height:38px;">
-                        Import Data <input type="file" id="importFile" accept=".json" style="display:none;" onchange="importSystemData(event)">
-                    </label>
+                    <button class="btn-save" style="background-color: var(--color-asset);" onclick="document.getElementById('importFile').click()">Import Data</button>
+                    <input type="file" id="importFile" accept=".json" style="display:none;">
                 </div>
             </div>
         </div>
