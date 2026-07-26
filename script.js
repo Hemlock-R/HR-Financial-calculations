@@ -6,7 +6,7 @@ const defaultVocabulary = {
 };
 
 const defaultPreferences = {
-    theme: 'dark',
+    theme: 'white',
     radius: '12px',
     scalingFactor: '0.15',
     currency: 'GHS'
